@@ -1,14 +1,14 @@
-#python3
-#author: 9bie
-#blog: http://9bie.org
+#!/usr/bin/python3
+# -*- coding: UTF-8 -*-
 
 #coding:utf-8
 import requests
 import execjs
 import json
 import time
+import re
 #python3
-from urllib.parse import quote
+from urllib.parse import quote_plus
 
 #python2
 #import urllib
@@ -32,13 +32,13 @@ class BaiduPan(object):
 
         self.w = requests.session()
         self.headers = {
-            "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept":"application/json, text/javascript, */*; q=0.01",
             "Accept-Encoding":"gzip, deflate, br",
             'Connection': 'keep-alive',
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            "Accept-Language":"zh-HK,zh;q=0.9,ja-JP;q=0.8,ja;q=0.7,zh-CN;q=0.6,zh-TW;q=0.5,en-US;q=0.4,en;q=0.3",
-            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36",
-            'X-Requested-With': 'XMLHttpRequest',
+            "Accept-Language":"en,zh-CN;q=0.9,zh;q=0.8",
+            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.83 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest",
         }
         self.w.headers.update(self.headers)
 
@@ -57,9 +57,9 @@ class BaiduPan(object):
                               "&clienttype=0"
         self.transfer_api = "https://pan.baidu.com/share/transfer?shareid=%s" \
                             "&from=%s" \
+                            "&ondup=newcopy" \
+                            "&async=1" \
                             "&channel=chunlei" \
-                            "&ondup=newcopy"\
-                            "&async=1"\
                             "&web=1" \
                             "&app_id=250528" \
                             "&bdstoken=%s" \
@@ -68,9 +68,7 @@ class BaiduPan(object):
         self.report_user_api="https://pan.baidu.com/api/report/user?channel=chunlei&web=1&app_id=250528&bdstoken=%s" \
                              "&logid=%s" \
                              "&clienttype=0"
-        self.memship_api="https://pan.baidu.com/rest/2.0/membership/user?method=query" \
-                         "&reminder=1" \
-                         "&channel=chunlei" \
+        self.memship_api="https://pan.baidu.com/rest/2.0/membership/user?channel=chunlei" \
                          "&web=1" \
                          "&app_id=250528" \
                          "&bdstoken=%s" \
@@ -157,52 +155,31 @@ class BaiduPan(object):
         else:
             return True
     def __verifyIsLogin(self):
-        ret = self.w.get("https://passport.baidu.com/center")
-        if "修改头像".encode("utf-8") not in ret.content:
+        ret = self.w.get("https://passport.baidu.com/v6/ucenter")
+        if "通行证".encode("utf-8") not in ret.content:
             print("登陆失败，请检查Cookies或者使用Login方法登陆。")
         else:
             self.logind=True
         # gugugu~
-    def login(self,user,passwd):
-        # 还未完成
-        self.w.get("https://pan.baidu.com/")
-        login_url = "https://passport.baidu.com/v2/api/?login"
-        token_url = "https://passport.baidu.com/v2/api/?getapi&class=login&tpl=mn&tangram=true"
-
-        postData={
-            "staticpage":"http://pan.baidu.com/res/static/thirdparty/pass_v3_jump.html",
-            "charset":"utf-8",
-            "token":self.__getLogintoken(self.w.get(token_url).text),
-            "tpl":"netdisk",
-            "apiver":"v3",
-            "tt":int(time.time()),
-            "codestring":"",
-            "safeflg":"0",
-            "u":"http://pan.baidu.com",
-            "isPhone":"false",
-            "quick_user":"0",
-            "loginmerge":"true",
-            "logintype":"basicLogin",
-            "username":user,
-            "password":passwd,
-            "verifycode":"",
-            "mem_pass":"on",
-            "ppui_logintime":"49586",
-            "callback":"parent.bd__pcbs__hksq59"
-        }
-        self.w.headers.update({"referer":"https://pan.baidu.com"})
-        r = self.w.post(login_url,postData)
-        print(r.text)
     def __getLogintoken(self,source): return string_middle("login_token='","';",source)
     def __getShareuk(self,source):return string_middle('"uk":',',',source)
-    def __getFsidlist(self,source):return string_middle('"fs_id":',',',source)
+    def __getFsidlist(self, source):
+        list = []
+        patt = """(\"fs_id\":[0-9]*)"""
+        data = re.findall(patt, source)
+        for da in data:
+            if da.replace('"fs_id":', '') in list:
+                pass
+            else:
+                list.append(da.replace('"fs_id":', ''))
+        return ','.join(list)
     def __getBdstoken(self,source):return string_middle('bdstoken":"','"',source)
     def __getShareid(self,source):return string_middle('"shareid":',',',source)
     def create_folder(self,path):
         logid = self.__getLogid()
         bdstoken = self.__getBdstoken(self.w.get("https://pan.baidu.com").text)
         self.w.headers.update({"referer":"https://pan.baidu.com/disk/home?errno=0&errmsg=Auth%20Login%20Sucess&&bduss=&ssnerror=0&traceid="})
-        r = self.w.post(self.crete_folder_api%(bdstoken,logid),data="path=%2F"+quote(path)+"&isdir=1")
+        r = self.w.post(self.crete_folder_api%(bdstoken,logid),data="path=%2F"+quote_plus(path)+"&isdir=1")
         r2=json.loads(r.text)
         if "errno" not in r2:
             print("Unknow Error")
@@ -252,10 +229,10 @@ class BaiduPan(object):
         obj = self.w.get(bdlink)
 
         fsidlist=self.__getFsidlist(obj.text)
+        print(fsidlist)
         shareid=self.__getShareid(obj.text)
         formid=self.__getShareuk(obj.text)
         self.w.get(self.memship_api%(bdstoken,logid))
-
 
         self.w.headers.update({"origin": "https://pan.baidu.com"})
         self.w.headers.update({"referer":bdlink})
@@ -268,7 +245,8 @@ class BaiduPan(object):
         #     "fsidlist": [int(fsidlist)],
         #     "path": '/'
         # }
-        result = self.w.post(self.transfer_api%(shareid,formid,bdstoken,logid),data="fsidlist=%5B"+fsidlist+"%5D&path="+quote(path))
+        result = self.w.post(self.transfer_api%(shareid,formid,bdstoken,logid),data="fsidlist=%5B"+fsidlist+"%5D&path="+quote_plus(path))
+#        print(result.url, result.request.headers, result.headers)
         r2 = json.loads(result.text)
         if "errno" not in r2:
             print("Unknow Error.")
@@ -287,5 +265,3 @@ if __name__=="__main__":
         "BDUSS":"~",
         "STOKEN":""
     })
-    # a.create_folder("lalala")
-    # a.transfer("https://pan.baidu.com/s/1xJ-A651ih8SQFxvZJRkBMQ",code="59n8")
